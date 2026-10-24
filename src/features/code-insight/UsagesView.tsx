@@ -1,6 +1,6 @@
 /** "usages" tool window: Find Usages results grouped by file with line previews. */
 import { useCallback, useMemo, useState } from "react";
-import { useTx } from "@/platform/i18n";
+import { formatMessage, useTx } from "@/platform/i18n";
 import { basename, relativeDir, useProject } from "@/platform/project";
 import { EmptyState, Icon, IconButton, Spinner, Tabs, Tree, fileIconName, type TreeRowState, T } from "@/ui";
 import { openLocation } from "./ipc";
@@ -28,7 +28,7 @@ export function UsagesTabs() {
   const tx = useTx();
   const search = useUsages((s) => s.search);
   if (!search) return null;
-  const label = search.symbol ? `'${search.symbol}' 的用法` : tx("Usages");
+  const label = search.symbol ? formatMessage(tx("Usages of '{symbol}'"), { symbol: search.symbol }) : tx("Usages");
   return (
     <Tabs
       variant="compact"
@@ -135,7 +135,11 @@ export function UsagesView() {
           <div className={styles.summary} role="status" aria-live="polite">
             {search.loading ? (
               <>
-                <Spinner size={12} /> {search.symbol ? `'${search.symbol}' 的用法` : tx("Searching for usages")}…
+                <Spinner size={12} />{" "}
+                {search.symbol
+                  ? formatMessage(tx("Searching for usages of '{symbol}'"), { symbol: search.symbol })
+                  : tx("Searching for usages")}
+                …
               </>
             ) : (
               <span className={styles.error}>{search.error}</span>

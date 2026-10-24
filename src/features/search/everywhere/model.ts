@@ -245,13 +245,14 @@ export function matchActions(
     let score: number;
     let indices: number[] = [];
     const translated = tx(a.title);
-    const translatedHit = matchText(translated, q, { wordAligned: true });
-    const englishHit = translated === a.title ? undefined : matchText(a.title, q, { wordAligned: true });
-    const useEnglishHit = !!englishHit && (!translatedHit || englishHit.score > translatedHit.score);
-    const title = useEnglishHit ? englishHit : translatedHit;
+    const title = matchText(translated, q, { wordAligned: true });
+    // The English title still matches; its indices don't apply to the translated text.
+    const english = title || translated === a.title ? undefined : matchText(a.title, q, { wordAligned: true });
     if (title) {
       score = title.score;
-      indices = useEnglishHit ? [] : title.indices;
+      indices = title.indices;
+    } else if (english) {
+      score = english.score;
     } else {
       const extra = [a.category ? tx(a.category) : "", a.description, ...(a.keywords ?? [])].filter(
         (s): s is string => !!s,

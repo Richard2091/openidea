@@ -178,6 +178,62 @@ export function useTx(): typeof tx {
   }, [texts]);
 }
 
+type Template = { pattern: RegExp; names: string[]; translation: string; literal: number };
+
+const templateCache = new WeakMap<Catalog, Template[]>();
+
+/** Source-text entries with `{name}` placeholders, e.g. `"{name} is not installed"`. */
+function templatesOf(texts: Catalog): Template[] {
+  let templates = templateCache.get(texts);
+  if (templates) return templates;
+  templates = [];
+  for (const [source, translation] of Object.entries(texts)) {
+    const names: string[] = [];
+    const parts = source.split(/\{(\w+)\}/);
+    if (parts.length < 2) continue;
+    const pattern = parts
+      .map((part, i) => (i % 2 ? (names.push(part), "(.+?)") : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+      .join("");
+    templates.push({
+      pattern: new RegExp(`^${pattern}$`),
+      names,
+      translation,
+      literal: source.length - names.join("").length,
+    });
+  }
+  // Most specific first: `Language server '{name}' is not installed` before `{name} is not installed`.
+  templates.sort((a, b) => b.literal - a.literal);
+  templateCache.set(texts, templates);
+  return templates;
+}
+
+function translateText(texts: Catalog, text: string): string {
+  const exact = texts[text];
+  if (exact !== undefined) return exact;
+  for (const { pattern, names, translation } of templatesOf(texts)) {
+    const m = pattern.exec(text);
+    if (!m) continue;
+    const params: MessageParams = {};
+    names.forEach((name, i) => (params[name] = texts[m[i + 1]!] ?? m[i + 1]));
+    return formatMessage(translation, params);
+  }
+  return text;
+}
+
+/**
+ * `tx` for text built at runtime (notification titles): also matches source-text
+ * templates such as `"{name} failed"`, translating the substituted parts as text.
+ */
+export function txTemplate(text: string): string {
+  return translateText(useI18n.getState().texts, text);
+}
+
+/** `txTemplate` bound to the current locale; components re-render when it changes. */
+export function useTxTemplate(): (text: string) => string {
+  const texts = useI18n((s) => s.texts);
+  return useCallback((text: string) => translateText(texts, text), [texts]);
+}
+
 /** All keys with `prefix`, across the active catalog and the English fallback. */
 export function keysWithPrefix(prefix: string): string[] {
   const keys = new Set<string>();

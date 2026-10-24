@@ -9,6 +9,7 @@ import {
   setLocale,
   t,
   tx,
+  txTemplate,
   useI18n,
 } from "./i18n";
 import en from "./locales/en.json";
@@ -116,6 +117,16 @@ describe("t / locales", () => {
     expect(tx(undefined)).toBeUndefined();
   });
 
+  it("matches source-text templates, translating the substituted text", async () => {
+    expect(txTemplate("Push failed")).toBe("Push failed");
+    await setLocale("zh");
+    expect(txTemplate("ruff is not installed")).toBe("ruff 未安装");
+    expect(txTemplate("Language server 'gopls' is not installed")).toBe("语言服务器 'gopls' 未安装");
+    expect(txTemplate("Retry failed")).toBe(`${tx("Retry")}失败`);
+    expect(txTemplate("Sync with OS")).toBe("与操作系统同步");
+    expect(txTemplate("Something else entirely")).toBe("Something else entirely");
+  });
+
   it("lists keys by prefix", () => {
     const keys = keysWithPrefix("menu.");
     expect(keys).toContain("menu.file.save");
@@ -131,6 +142,12 @@ describe("catalogs", () => {
       expect(text.trim(), source).not.toBe("");
       expect(text, source).not.toBe(source);
     }
+  });
+
+  it("keep the placeholders of source-text templates", () => {
+    const names = (m: string) => [...m.matchAll(/\{(\w+)\}/g)].map((x) => x[1]).sort();
+    for (const [source, text] of Object.entries(zhText as Record<string, string>))
+      expect(names(text), source).toEqual(names(source));
   });
 
   it("have the same keys", () => {

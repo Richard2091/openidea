@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import clsx from "clsx";
 import { actionToggled, executeAction, getAction } from "@/platform/actions";
 import type { ProjectFileSet } from "@/platform/ipc";
-import { tx } from "@/platform/i18n";
+import { useTx } from "@/platform/i18n";
 import { hasPrimaryModifier, shortcutLabel } from "@/platform/keymap";
 import {
   Checkbox,
@@ -63,6 +63,7 @@ export function SearchEverywhereOverlay() {
 type Selection = { key: string | null; index: number; moved: boolean };
 
 function SearchEverywhereDialog() {
+  const tx = useTx();
   const tab = useSearchEverywhere((s) => s.tab);
   const query = useSearchEverywhere((s) => s.query);
   const includeNonProject = useSearchEverywhere((s) => s.includeNonProject);
@@ -403,7 +404,7 @@ function describe(row: SeRow | undefined): string {
       return "";
     case "action": {
       const a = getAction(row.id);
-      return a?.description ?? (row.category ? `${tx(row.category)} | ${row.title}` : row.title);
+      return a?.description ?? (row.category ? `${row.category} | ${row.title}` : row.title);
     }
     case "file":
       return row.rel;
@@ -440,6 +441,7 @@ function ResultRow({
   toggleTick: number;
   onToggled: () => void;
 }) {
+  const tx = useTx();
   const tone = "strong";
   switch (row.kind) {
     case "section":
@@ -447,7 +449,7 @@ function ResultRow({
     case "more":
       return (
         <span className={clsx(styles.name, styles.more)}>
-          … {tx("more")} {tx(SECTION_TITLES[row.section])}
+          … {tx("more")} {tx(SECTION_TITLES[row.section]).toLowerCase()}
         </span>
       );
     case "file":

@@ -2,7 +2,6 @@
 import type { ReactNode } from "react";
 import { create } from "zustand";
 import { onIdeEvent } from "@/platform/ipc";
-import { tx, useI18n } from "@/platform/i18n";
 import { useProject } from "@/platform/project";
 import type { NotificationService } from "./contributions";
 
@@ -90,43 +89,6 @@ export const BALLOON_TIMEOUT: Record<NotificationLevel, number | null> = { info:
 const MAX_HISTORY = 200;
 let seq = 0;
 
-/** Common notification patterns embed runtime names, so they need lightweight interpolation. */
-const NOTIFICATION_PATTERNS: Array<[RegExp, (...groups: string[]) => string]> = [
-  [/^(.+?) has unsaved changes$/, (name) => `${name} 有未保存的更改`],
-  [/^(.+?) is not installed$/, (name) => `${name} 未安装`],
-  [/^Installing (.+)$/, (name) => `正在安装 ${name}`],
-  [/^Failed to install (.+)$/, (name) => `安装 ${name} 失败`],
-  [/^Uninstalled (.+)$/, (name) => `已卸载 ${name}`],
-  [/^Failed to uninstall (.+)$/, (name) => `卸载 ${name} 失败`],
-  [/^Installed (.+?) (.+)$/, (name, version) => `已安装 ${name} ${version}`],
-  [/^(.+?) installed$/, (name) => `${name} 已安装`],
-  [/^(.+?) failed$/, (name) => `${name} 失败`],
-  [/^Cannot find usages of '(.+)'$/, (name) => `无法查找 '${name}' 的用法`],
-  [/^No usages of '(.+)' found$/, (name) => `未找到 '${name}' 的用法`],
-  [/^No coverage data for '(.+)'$/, (name) => `没有 '${name}' 的覆盖率数据`],
-  [/^Cannot profile '(.+)'$/, (name) => `无法分析 '${name}'`],
-  [/^No profile for '(.+)'$/, (name) => `没有 '${name}' 的分析数据`],
-  [/^Stopped after (\d+) matches$/, (count) => `匹配 ${count} 处后停止`],
-  [/^(.*) has no tracked branch$/, (branch) => `${branch} 没有跟踪分支`],
-  [/^Cannot connect to (.+)$/, (target) => `无法连接到 ${target}`],
-  [/^Cannot execute on (.+)$/, (target) => `无法在 ${target} 上执行`],
-  [/^Cannot get the DDL of (.+)$/, (name) => `无法获取 ${name} 的 DDL`],
-  [/^(\d+) rows exported$/, (count) => `已导出 ${count} 行`],
-  [/^Checked out pull request #(.+)$/, (number) => `已检出拉取请求 #${number}`],
-  [/^Review submitted on #(.+)$/, (number) => `已在 #${number} 上提交审查`],
-  [/^Tests failed: (.+)$/, (detail) => `测试失败：${detail}`],
-];
-
-function notificationText(text: string): string {
-  const exact = tx(text);
-  if (exact !== text) return exact;
-  if (!useI18n.getState().locale.startsWith("zh")) return text;
-  const match = NOTIFICATION_PATTERNS.map(([pattern, make]) => [text.match(pattern), make] as const).find(
-    ([matches]) => matches,
-  );
-  return match?.[0] ? match[1](...match[0].slice(1)) : text;
-}
-
 export function notify(n: Parameters<NotificationService["notify"]>[0]): number {
   const id = ++seq;
   const group = groupOf(n);
@@ -139,9 +101,9 @@ export function notify(n: Parameters<NotificationService["notify"]>[0]): number 
     id,
     key: n.key,
     level: n.level,
-    title: notificationText(n.title),
-    body: typeof n.body === "string" ? notificationText(n.body) : n.body,
-    actions: n.actions?.map((action) => ({ ...action, label: notificationText(action.label) })),
+    title: n.title,
+    body: n.body,
+    actions: n.actions,
     time: Date.now(),
     read: false,
     balloon,

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTxTemplate } from "@/platform/i18n";
 import { EmptyState, IconButton, Toast, T } from "@/ui";
 import {
   BALLOON_TIMEOUT,
@@ -21,6 +22,7 @@ function timeLabel(t: number) {
 
 function Balloon({ n }: { n: IdeNotification }) {
   const [hover, setHover] = useState(false);
+  const txt = useTxTemplate();
   useEffect(() => {
     const ms = BALLOON_TIMEOUT[n.level];
     if (n.sticky || ms === null || hover) return;
@@ -31,10 +33,10 @@ function Balloon({ n }: { n: IdeNotification }) {
     <Toast
       className={styles.balloon}
       level={n.level}
-      title={n.title}
+      title={txt(n.title)}
       body={n.body}
       actions={n.actions?.map((a) => ({
-        label: a.label,
+        label: txt(a.label),
         run: () => {
           dismissBalloon(n.id);
           a.run();
@@ -73,6 +75,7 @@ function useListVisible() {
 
 /** The Notifications tool window (right stripe, as in IDEA): history, newest first. */
 export function NotificationsToolWindow() {
+  const txt = useTxTemplate();
   const all = useNotifications((s) => s.items);
   const items = all.filter((n) => n.logged);
   const visible = useListVisible();
@@ -92,10 +95,10 @@ export function NotificationsToolWindow() {
             key={n.id}
             className={styles.entry}
             level={n.level}
-            title={n.title}
+            title={txt(n.title)}
             body={n.body}
             meta={timeLabel(n.time)}
-            actions={n.actions}
+            actions={n.actions?.map((a) => ({ ...a, label: txt(a.label) }))}
             onClose={() => removeNotification(n.id)}
           />
         ))
