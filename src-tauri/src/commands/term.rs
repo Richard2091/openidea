@@ -54,3 +54,10 @@ pub fn term_kill(state: State<'_, AppState>, id: TerminalId) -> IdeResult<()> {
 pub fn term_default_shell() -> String {
     ide_terminal::default_shell_path()
 }
+
+/// Installed shells for the Terminal's "New Predefined Session" menu.
+#[tauri::command]
+#[specta::specta]
+pub fn term_available_shells() -> Vec<String> {
+    ide_terminal::available_shells()
+}

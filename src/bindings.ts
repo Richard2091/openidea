@@ -342,6 +342,8 @@ export const commands = {
 	termKill: (id: TerminalId) => typedError<null, IdeError>(__TAURI_INVOKE("term_kill", { id })),
 	/**  Shell used when Settings › Terminal › Shell path is empty. */
 	termDefaultShell: () => __TAURI_INVOKE<string>("term_default_shell"),
+	/**  Installed shells for the Terminal's "New Predefined Session" menu. */
+	termAvailableShells: () => __TAURI_INVOKE<string[]>("term_available_shells"),
 	/**  Detected configs followed by user-defined ones (user ids win on conflict). */
 	runConfigs: () => typedError<RunConfig[], IdeError>(__TAURI_INVOKE("run_configs")),
 	runSaveConfigs: (configs: RunConfig[]) => typedError<null, IdeError>(__TAURI_INVOKE("run_save_configs", { configs })),
@@ -3740,7 +3742,7 @@ export type TerminalInfo = {
 
 export type TerminalOptions = {
 	cwd: IpcPath,
-	/**  Defaults to the user's login shell (`$SHELL`, or `COMSPEC` on Windows). */
+	/**  Defaults to the user's login shell (passwd entry, then `$SHELL`; PowerShell or `COMSPEC` on Windows). */
 	shell: string | null,
 	args: string[],
 	env: { [key in string]: string },
@@ -3767,6 +3769,8 @@ export type TerminalSettings = {
 	shellIntegration?: boolean,
 	highlightHyperlinks?: boolean,
 	optionAsMeta?: boolean,
+	/**  Escape moves focus to the editor instead of reaching the shell. */
+	escapeToEditor?: boolean,
 	/**  `block` | `underline` | `bar`. */
 	cursorShape?: string,
 	cursorBlink?: boolean,
@@ -3775,6 +3779,10 @@ export type TerminalSettings = {
 	fontSize?: number | null,
 	/**  Multiple of the cell height. */
 	lineHeight?: number | null,
+	/**  Font tried for glyphs the main font lacks; empty = none. */
+	fallbackFontFamily?: string,
+	/**  Multiple of the cell width. */
+	columnWidth?: number | null,
 };
 
 export type TestCaseReport = {

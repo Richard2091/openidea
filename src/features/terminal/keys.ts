@@ -49,6 +49,8 @@ export function terminalKeyAction(e: KeyLike, hasSelection: boolean): TerminalKe
   if (ctrl && shift && !meta && !alt) {
     if (e.code === "KeyC") return hasSelection ? { kind: "copy" } : { kind: "pass" };
     if (e.code === "KeyV") return { kind: "paste" };
+    // New Tab on Windows / Linux (IDEA keymap); plain Ctrl+T still reaches the shell.
+    if (e.code === "KeyT") return { kind: "pass" };
   }
   if (ctrl && !meta && !alt) {
     // Use the physical key so layouts and Shift don't change the control code.
@@ -83,12 +85,10 @@ export function installTerminalKeys(target: Window = window): () => void {
     const action = terminalKeyAction(e, session.hasSelection);
     // "Override IDE shortcuts" off: Ctrl+key and Escape reach the IDE keymap first;
     // keys it doesn't bind still get to xterm through its own key handling.
-    if (
-      action.kind === "send" &&
-      (e.ctrlKey || e.key === "Escape") &&
-      !workflowSettings().terminal.overrideIdeShortcuts
-    )
-      return;
+    const t = workflowSettings().terminal;
+    if (action.kind === "send" && (e.ctrlKey || e.key === "Escape") && !t.overrideIdeShortcuts) return;
+    // "Move focus to the Editor with Escape": the IDE keymap's Escape (Focus Editor) runs instead.
+    if (action.kind === "send" && e.key === "Escape" && t.escapeToEditor) return;
     switch (action.kind) {
       case "pass":
         return;

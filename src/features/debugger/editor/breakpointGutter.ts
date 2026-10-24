@@ -6,13 +6,11 @@
 import { RangeSet, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, GutterMarker, ViewPlugin, lineNumberMarkers, type ViewUpdate } from "@codemirror/view";
 import { editorsFor, mirroredChange, remoteChange, useEditorRegistry, type EditorDocContext } from "@/editor/api";
-import { showContextMenu } from "@/ui";
 import { isConditional, mapLines, type BreakpointEntry, type BreakpointStatus } from "../breakpoints/model";
 import {
   addBreakpoint,
   breakpointsOf,
   setFileBreakpoints,
-  toggleTemporaryBreakpoint,
   updateBreakpoint,
   useBreakpoints,
 } from "../breakpoints/store";
@@ -21,14 +19,11 @@ import {
   removeSpecial,
   setSpecialLines,
   specialAt,
-  toggleFieldAt,
-  toggleMethodAt,
   updateSpecial,
   useSpecialBreakpoints,
   type SpecialBreakpoint,
 } from "../breakpoints/special";
 import { toggleBreakpointSmart } from "../breakpoints/toggle";
-import { methodAt, fieldAt } from "../breakpoints/symbols";
 import { sessionsRunning, useDebug } from "../state";
 import { openBreakpointPopover } from "../ui/popoverStore";
 import styles from "./editor.module.css";
@@ -172,7 +167,8 @@ export function breakpointGutter(ctx: EditorDocContext): Extension {
           }),
         ];
         view.dom.addEventListener("mousedown", this.onMouseDown);
-        view.dom.addEventListener("contextmenu", this.onContextMenu);
+        // Inside view.dom, so this runs before the editor's gutter menu listener there.
+        view.scrollDOM.addEventListener("contextmenu", this.onContextMenu);
       }
 
       scheduleRebuild() {
@@ -234,59 +230,18 @@ export function breakpointGutter(ctx: EditorDocContext): Extension {
         if (!inBreakpointArea(e)) return;
         const line = lineAtEvent(this.view, e);
         if (line == null) return;
-        e.preventDefault();
-        e.stopPropagation();
-        const at = { x: e.clientX, y: e.clientY };
+        // Other lines get the editor's gutter menu, like IDEA.
         const bp = specialAt(path).find((b) => b.line === line) ?? breakpointsOf(path).find((b) => b.line === line);
-        if (bp) {
-          openBreakpointPopover(path, bp.id, at);
-          return;
-        }
-        if (!canPlaceBreakpoint(ctx.language)) return;
-        const text = this.view.state.doc.toString();
-        const method = methodAt(ctx.language, text, line);
-        const field = fieldAt(ctx.language, text, line);
-        showContextMenu(at, [
-          { label: "Toggle Line Breakpoint", icon: "breakpoint", run: () => addBreakpoint(path, line) },
-          {
-            label: "Toggle Temporary Line Breakpoint",
-            icon: "breakpoint",
-            run: () => toggleTemporaryBreakpoint(path, line),
-          },
-          ...(method
-            ? [
-                {
-                  label: `Toggle Method Breakpoint (${method.label})`,
-                  icon: "breakpoint-method",
-                  run: () => void toggleMethodAt(path, line, method.name),
-                },
-              ]
-            : []),
-          ...(field
-            ? [
-                {
-                  label: `Toggle Field Watchpoint (${field.label})`,
-                  icon: "breakpoint-field",
-                  run: () => void toggleFieldAt(path, line, field),
-                },
-              ]
-            : []),
-          {
-            label: "Add Conditional Breakpoint…",
-            run: () => openBreakpointPopover(path, addBreakpoint(path, line).id, at),
-          },
-          {
-            label: "Add Logpoint…",
-            run: () => openBreakpointPopover(path, addBreakpoint(path, line).id, at, true),
-          },
-        ]);
+        if (!bp) return;
+        e.preventDefault();
+        openBreakpointPopover(path, bp.id, { x: e.clientX, y: e.clientY });
       };
 
       destroy() {
         this.destroyed = true;
         this.unsubs.forEach((u) => u());
         this.view.dom.removeEventListener("mousedown", this.onMouseDown);
-        this.view.dom.removeEventListener("contextmenu", this.onContextMenu);
+        this.view.scrollDOM.removeEventListener("contextmenu", this.onContextMenu);
       }
     },
   );

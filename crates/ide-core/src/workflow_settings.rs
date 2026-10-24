@@ -241,6 +241,8 @@ pub struct TerminalSettings {
     pub shell_integration: bool,
     pub highlight_hyperlinks: bool,
     pub option_as_meta: bool,
+    /// Escape moves focus to the editor instead of reaching the shell.
+    pub escape_to_editor: bool,
     /// `block` | `underline` | `bar`.
     pub cursor_shape: String,
     pub cursor_blink: bool,
@@ -249,6 +251,10 @@ pub struct TerminalSettings {
     pub font_size: f32,
     /// Multiple of the cell height.
     pub line_height: f32,
+    /// Font tried for glyphs the main font lacks; empty = none.
+    pub fallback_font_family: String,
+    /// Multiple of the cell width.
+    pub column_width: f32,
 }
 
 impl Default for TerminalSettings {
@@ -267,12 +273,15 @@ impl Default for TerminalSettings {
             shell_integration: true,
             highlight_hyperlinks: true,
             option_as_meta: false,
+            escape_to_editor: false,
             cursor_shape: "block".into(),
             cursor_blink: true,
             use_editor_font: true,
             font_family: "JetBrains Mono".into(),
             font_size: 13.0,
             line_height: 1.0,
+            fallback_font_family: String::new(),
+            column_width: 1.0,
         }
     }
 }

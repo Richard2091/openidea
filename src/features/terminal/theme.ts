@@ -92,9 +92,8 @@ export function buildTheme(read: TokenReader): ITheme {
     selectionBackground: toHex(selection ?? mix(bg, accent, 0.32)),
     selectionInactiveBackground: toHex(selection ? mix(bg, selection, 0.6) : mix(bg, accent, 0.18)),
     selectionForeground: undefined,
-    scrollbarSliderBackground: toHex(mix(bg, fg, 0.14)),
-    scrollbarSliderHoverBackground: toHex(mix(bg, fg, 0.24)),
-    scrollbarSliderActiveBackground: toHex(mix(bg, fg, 0.32)),
+    // The overview ruler (search matches beside the scrollbar) needs no separator line.
+    overviewRulerBorder: toHex(bg),
     black: toHex(black),
     red: toHex(red),
     green: toHex(green),
@@ -209,4 +208,25 @@ export function terminalFont(
     size,
     lineHeight: Math.max(1, Math.round((lh / (size * 1.2)) * 100) / 100),
   };
+}
+
+/**
+ * Settings › Tools › Terminal extras over `terminalFont`: the fallback family
+ * goes right after the main one, and the column width (a multiple of the cell
+ * width) becomes xterm's letter spacing, from the ≈ 0.6 em advance of
+ * monospace fonts.
+ */
+export function withFontExtras(
+  font: { family: string; size: number; lineHeight: number },
+  t: { fallbackFontFamily: string; columnWidth: number },
+): { family: string; size: number; lineHeight: number; letterSpacing: number } {
+  const fallback = t.fallbackFontFamily.replace(/"/g, "").trim();
+  const comma = font.family.indexOf(",");
+  const family = !fallback
+    ? font.family
+    : comma < 0
+      ? `${font.family}, "${fallback}"`
+      : `${font.family.slice(0, comma)}, "${fallback}"${font.family.slice(comma)}`;
+  const letterSpacing = Math.round((t.columnWidth - 1) * font.size * 0.6 * 10) / 10;
+  return { ...font, family, letterSpacing };
 }

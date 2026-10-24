@@ -91,12 +91,15 @@ export interface TerminalSettingsValid {
   shellIntegration: boolean;
   highlightHyperlinks: boolean;
   optionAsMeta: boolean;
+  escapeToEditor: boolean;
   cursorShape: CursorShape;
   cursorBlink: boolean;
   useEditorFont: boolean;
   fontFamily: string;
   fontSize: number;
   lineHeight: number;
+  fallbackFontFamily: string;
+  columnWidth: number;
 }
 
 export interface ActionsOnSaveValid {
@@ -135,6 +138,7 @@ export const WORKFLOW_LIMITS = {
   terminationTimeoutMs: { min: 0, max: 600_000 },
   terminalFontSize: { min: 6, max: 72 },
   terminalLineHeight: { min: 0.5, max: 3 },
+  terminalColumnWidth: { min: 0.5, max: 2 },
 } as const;
 
 export const DEFAULT_EXTERNAL_TOOL: ExternalToolValid = {
@@ -221,12 +225,15 @@ export const DEFAULT_WORKFLOW: WorkflowSettings = {
     shellIntegration: true,
     highlightHyperlinks: true,
     optionAsMeta: false,
+    escapeToEditor: false,
     cursorShape: "block",
     cursorBlink: true,
     useEditorFont: true,
     fontFamily: "JetBrains Mono",
     fontSize: 13,
     lineHeight: 1,
+    fallbackFontFamily: "",
+    columnWidth: 1,
   },
   actionsOnSave: { optimizeImports: false, cleanup: false },
   externalTools: [],
@@ -357,12 +364,15 @@ export function validateTerminal(raw: unknown): TerminalSettingsValid {
     shellIntegration: bool(v.shellIntegration, d.shellIntegration),
     highlightHyperlinks: bool(v.highlightHyperlinks, d.highlightHyperlinks),
     optionAsMeta: bool(v.optionAsMeta, d.optionAsMeta),
+    escapeToEditor: bool(v.escapeToEditor, d.escapeToEditor),
     cursorShape: oneOf(v.cursorShape, ["block", "underline", "bar"] as const, d.cursorShape),
     cursorBlink: bool(v.cursorBlink, d.cursorBlink),
     useEditorFont: bool(v.useEditorFont, d.useEditorFont),
     fontFamily: nonEmpty(v.fontFamily, d.fontFamily),
     fontSize: num(v.fontSize, d.fontSize, WORKFLOW_LIMITS.terminalFontSize),
     lineHeight: num(v.lineHeight, d.lineHeight, WORKFLOW_LIMITS.terminalLineHeight),
+    fallbackFontFamily: text(v.fallbackFontFamily, d.fallbackFontFamily).trim(),
+    columnWidth: num(v.columnWidth, d.columnWidth, WORKFLOW_LIMITS.terminalColumnWidth),
   };
 }
 

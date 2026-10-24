@@ -4,21 +4,23 @@
  * merge and Local History editors, remote operations.
  */
 import { onWorkflowSettingsChange, workflowSettings } from "@/platform/workflowSettings";
-import { registerEditorContribution } from "@/editor/api";
+import { editorsFor, registerEditorContribution } from "@/editor/api";
 import {
   notifications,
   registerEditorKind,
+  registerMenuGroup,
   registerOverlay,
   registerTitleItem,
   registerToolWindow,
 } from "@/workbench/contributions";
 import { executeAction } from "@/platform/actions";
+import { getContext } from "@/platform/context";
 import { lazyComponent } from "@/ui";
 import { registerVcsActions } from "./actions";
 import { installChangelists } from "./changelists";
 import { registerHistoryActions, trackOperationContext } from "./historyActions";
 import { controlLabel, controlOperation, inProgress } from "./operations";
-import { blameSlot } from "./blame";
+import { annotationsShown, blameSlot } from "./blame";
 import { BranchWidget, useBranchesPopup } from "./BranchWidget";
 import { showConflictsDialog } from "./conflictsUi";
 import { registerCompareActions } from "./compare";
@@ -103,7 +105,10 @@ export function activate(): () => void {
     installIncomingCheck(),
     installFileConfirmations(),
     // Settings › Git › Sign-off commit: the default of Commit Options › Sign-off Commit.
-    onWorkflowSettingsChange((w) => w.vcs.git.signOff, (signOff) => useCommit.setState({ signOff })),
+    onWorkflowSettingsChange(
+      (w) => w.vcs.git.signOff,
+      (signOff) => useCommit.setState({ signOff }),
+    ),
     registerVcsActions(),
     registerHistoryActions(),
     registerLocalHistoryActions(),
@@ -158,6 +163,21 @@ export function activate(): () => void {
       id: "vcs.changeMarkers",
       order: 60,
       extensions: (ctx) => [changeMarkers(ctx), blameSlot()],
+    }),
+    registerMenuGroup({
+      id: "vcs.gutter",
+      menus: ["editorGutter"],
+      order: 10,
+      items: (_menu, { paths: [path] }) => {
+        if (!path || !getContext().vcsAvailable) return [];
+        const shown = editorsFor(path).some((h) => annotationsShown(h.view));
+        return [
+          {
+            label: shown ? "Close Annotations" : "Annotate with Git Blame",
+            run: () => void executeAction("vcs.annotate", path),
+          },
+        ];
+      },
     }),
   ];
   return () => {

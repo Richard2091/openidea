@@ -22,6 +22,10 @@ function focusActiveSoon() {
   requestAnimationFrame(() => requestAnimationFrame(() => terminalRuntime()?.activeSession()?.focus()));
 }
 
+function shellName(path: string): string {
+  return path.split(/[\\/]/).pop()!.replace(/\.exe$/i, "") || path;
+}
+
 async function openNewTab(dir?: string) {
   const root = projectRoot();
   const cwd = dir || root;
@@ -53,7 +57,26 @@ export function activate(): () => void {
         icon: "plus",
         when: "projectOpen",
         keywords: ["shell", "console"],
+        // ⌘T is VCS Update elsewhere; in the terminal it opens a tab, as in IDEA.
+        keyWhen: "terminalFocus",
         run: () => openNewTab(),
+      },
+      {
+        id: "terminal.newPredefinedSession",
+        title: "New Predefined Session",
+        description: "Opens a terminal tab running the shell at `arg` (a path from `termAvailableShells`).",
+        category: "Terminal",
+        icon: "terminal",
+        when: "projectOpen",
+        hidden: true,
+        run: async ({ arg }) => {
+          const root = projectRoot();
+          if (typeof arg !== "string" || !arg || !root) return;
+          const rt = await loadTerminalRuntime();
+          rt.newTab(rt.startDirectory(root), shellName(arg), { program: arg, args: [], shell: true });
+          toolWindowService().show(WINDOW, true);
+          focusActiveSoon();
+        },
       },
       {
         id: "terminal.openAt",

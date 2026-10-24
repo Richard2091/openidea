@@ -15,6 +15,7 @@ import {
 import { Button, Checkbox, IconButton, Input, Menu, type SelectOption, T } from "@/ui";
 import { NumberInput, Row, SearchLabel, Section, Select } from "../components/Form";
 import { useLabelMatch, useSetting } from "../components/context";
+import { selectPage, setQuery } from "../model/staging";
 import type { PageSpec } from "./spec";
 import { BoundToggle, Grid, Indented, PageLink, TableEditor } from "./workflowControls";
 import styles from "./Workflow.module.css";
@@ -91,19 +92,64 @@ function EnvRow() {
 }
 
 function ShellPathRow() {
+  const [value, set] = useSetting<string>("terminal.shellPath");
   const [detected, setDetected] = useState<string | null>(null);
+  const [shells, setShells] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const id = useId();
   useEffect(() => {
     if (!isTauri()) return;
     void commands.termDefaultShell().then(setDetected, () => undefined);
+    void commands.termAvailableShells().then(setShells, () => undefined);
   }, []);
+  const browse = async () => {
+    const { open: pick } = await import("@tauri-apps/plugin-dialog");
+    const picked = await pick({ multiple: false, title: "Shell Path" });
+    const path = Array.isArray(picked) ? picked[0] : picked;
+    if (path) set(path);
+  };
   return (
-    <TextSetting
-      k="terminal.shellPath"
+    <Row
       label="Shell path"
-      mono
-      placeholder={detected ?? "Login shell"}
+      htmlFor={id}
       hint="A command line, e.g. /bin/zsh --login. Leave empty to use the login shell."
-    />
+    >
+      <Input
+        id={id}
+        mono
+        className={styles.wide}
+        value={value}
+        placeholder={detected ?? "Login shell"}
+        onChange={(e) => set(e.target.value)}
+      />
+      <IconButton
+        ref={menuRef}
+        icon="chevron-down"
+        size="small"
+        title="Installed Shells"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={shells.length === 0}
+        onClick={() => setOpen((o) => !o)}
+      />
+      <Menu
+        open={open}
+        onClose={() => setOpen(false)}
+        anchor={menuRef}
+        placement="bottom-end"
+        aria-label="Installed shells"
+        items={shells.map((p) => ({ id: p, label: p, checked: p === value, run: () => set(p) }))}
+      />
+      <IconButton
+        icon="folder-open"
+        size="small"
+        title="Browse…"
+        aria-label="Browse"
+        disabled={!isTauri()}
+        onClick={() => void browse()}
+      />
+    </Row>
   );
 }
 
@@ -127,6 +173,22 @@ function CursorRow() {
   );
 }
 
+/** Keymap filtered to the Terminal actions. */
+function TerminalKeybindingsLink() {
+  return (
+    <button
+      type="button"
+      className={styles.link}
+      onClick={() => {
+        selectPage("keymap");
+        setQuery("Terminal");
+      }}
+    >
+      <T>Configure terminal keybindings</T>
+    </button>
+  );
+}
+
 function TerminalOptions() {
   return (
     <Grid
@@ -137,11 +199,20 @@ function TerminalOptions() {
           <BoundToggle k="terminal.mouseReporting" label="Mouse reporting" />
           <BoundToggle k="terminal.copyOnSelection" label="Copy to clipboard on selection" />
           <BoundToggle k="terminal.pasteOnMiddleClick" label="Paste on middle mouse button click" />
+          <BoundToggle
+            k="terminal.escapeToEditor"
+            label="Move focus to the Editor with Escape"
+            hint="Otherwise Escape goes to the shell."
+          />
         </>
       }
       right={
         <>
-          <BoundToggle k="terminal.overrideIdeShortcuts" label="Override IDE shortcuts" />
+          <BoundToggle
+            k="terminal.overrideIdeShortcuts"
+            label="Override IDE shortcuts"
+            hint={<TerminalKeybindingsLink />}
+          />
           <BoundToggle k="terminal.shellIntegration" label="Shell integration" />
           <BoundToggle k="terminal.highlightHyperlinks" label="Highlight hyperlinks" />
           {isMac && <BoundToggle k="terminal.optionAsMeta" label="Use Option as Meta key" />}
@@ -156,8 +227,11 @@ function TerminalFont() {
   const [family, setFamily] = useSetting<string>("terminal.fontFamily");
   const [size, setSize] = useSetting<number>("terminal.fontSize");
   const [lineHeight, setLineHeight] = useSetting<number>("terminal.lineHeight");
+  const [fallback, setFallback] = useSetting<string>("terminal.fallbackFontFamily");
+  const [columnWidth, setColumnWidth] = useSetting<number>("terminal.columnWidth");
   const matched = useLabelMatch("Use editor font");
   const familyId = useId();
+  const fallbackId = useId();
   return (
     <>
       <div className={clsx(styles.inlineRow, matched && styles.matched)}>
@@ -199,6 +273,24 @@ function TerminalFont() {
           />
         </Row>
       </Indented>
+      <Row label="Fallback font" htmlFor={fallbackId} hint="Used for characters the main font lacks.">
+        <Input
+          id={fallbackId}
+          className={styles.medium}
+          value={fallback}
+          placeholder="None"
+          onChange={(e) => setFallback(e.target.value)}
+        />
+      </Row>
+      <Row label="Column width">
+        <NumberInput
+          value={columnWidth}
+          onChange={setColumnWidth}
+          {...L.terminalColumnWidth}
+          step={0.1}
+          aria-label="Terminal column width"
+        />
+      </Row>
     </>
   );
 }
@@ -476,6 +568,8 @@ export const TOOLS_PAGES: PageSpec[] = [
               "Shell integration",
               "Highlight hyperlinks",
               "Use Option as Meta key",
+              "Move focus to the Editor with Escape",
+              "Configure terminal keybindings",
             ],
             component: TerminalOptions,
           },
@@ -493,7 +587,7 @@ export const TOOLS_PAGES: PageSpec[] = [
           {
             kind: "custom",
             label: "Use editor font",
-            keywords: ["Font", "Size", "Line height"],
+            keywords: ["Font", "Size", "Line height", "Fallback font", "Column width"],
             component: TerminalFont,
           },
         ],

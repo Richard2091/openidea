@@ -4,7 +4,7 @@ import { matchCounter } from "./FindBar";
 import { buildSearchDecorations } from "./theme";
 import { findTerminalLinks, resolvePath, trimUrl } from "./links";
 import { layoutPanes, nextTabName, removeFromLayout, splitLayout } from "./store";
-import { buildTheme, mix, parseColor, toHex } from "./theme";
+import { buildTheme, mix, parseColor, toHex, withFontExtras } from "./theme";
 
 describe("theme", () => {
   it("parses colour formats", () => {
@@ -109,12 +109,18 @@ describe("terminal keys", () => {
     expect(terminalKeyAction(key({ key: "V", code: "KeyV", ctrlKey: true, shiftKey: true }), false)).toEqual({
       kind: "paste",
     });
+    // Ctrl+Shift+T is New Tab in the IDE keymap; Ctrl+T still goes to the shell.
+    expect(terminalKeyAction(key({ key: "T", code: "KeyT", ctrlKey: true, shiftKey: true }), false)).toEqual({
+      kind: "pass",
+    });
+    expect(terminalKeyAction(key({ key: "t", code: "KeyT", ctrlKey: true }), false)).toEqual({ kind: "send", data: "\x14" });
   });
 
   it("implements macOS conveniences", () => {
     expect(terminalKeyAction(key({ key: "c", metaKey: true }), true)).toEqual({ kind: "copy" });
     expect(terminalKeyAction(key({ key: "c", metaKey: true }), false)).toEqual({ kind: "pass" });
     expect(terminalKeyAction(key({ key: "k", metaKey: true }), false)).toEqual({ kind: "clear" });
+    expect(terminalKeyAction(key({ key: "t", metaKey: true }), false)).toEqual({ kind: "pass" });
     expect(terminalKeyAction(key({ key: "v", metaKey: true }), false)).toEqual({ kind: "paste" });
     expect(terminalKeyAction(key({ key: "f", metaKey: true }), false)).toEqual({ kind: "find" });
     expect(terminalKeyAction(key({ key: "ArrowLeft", altKey: true }), false)).toEqual({ kind: "send", data: "\x1bb" });
@@ -172,5 +178,21 @@ describe("split layout", () => {
     expect(removeFromLayout(l, "a")).toEqual({ id: "g2", orientation: "horizontal", children: ["b", "c"] });
     expect(removeFromLayout(l, "c")).toEqual({ id: "g1", orientation: "vertical", children: ["a", "b"] });
     expect(removeFromLayout("a", "a")).toBeNull();
+  });
+});
+
+describe("withFontExtras", () => {
+  const font = { family: '"JetBrains Mono", "Symbols Nerd Font", monospace', size: 10, lineHeight: 1 };
+
+  it("puts the fallback family right after the main one", () => {
+    expect(withFontExtras(font, { fallbackFontFamily: "PingFang SC", columnWidth: 1 }).family).toBe(
+      '"JetBrains Mono", "PingFang SC", "Symbols Nerd Font", monospace',
+    );
+    expect(withFontExtras(font, { fallbackFontFamily: "", columnWidth: 1 }).family).toBe(font.family);
+  });
+
+  it("turns the column width into letter spacing", () => {
+    expect(withFontExtras(font, { fallbackFontFamily: "", columnWidth: 1 }).letterSpacing).toBe(0);
+    expect(withFontExtras(font, { fallbackFontFamily: "", columnWidth: 1.5 }).letterSpacing).toBe(3);
   });
 });

@@ -371,6 +371,20 @@
   pointer-events: none;
 }
 
+.stripeDragged {
+  opacity: 0.4;
+}
+.stripeGhost {
+  position: fixed;
+  z-index: 1000;
+  margin: 0;
+  pointer-events: none;
+  background: var(--bg-popup);
+  border-radius: var(--radius-toolbar-button);
+  box-shadow: var(--shadow-popup);
+  opacity: 0.9;
+}
+
 /* Settings › Appearance › "Different tool window background". */
 :global(:root[data-tool-window-bg="different"]) .anchor {
   background: var(--bg-elev);

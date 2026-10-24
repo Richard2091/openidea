@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { useProject } from "@/platform/project";
 import { toolWindowService } from "@/workbench/contributions";
 import { usePlatform } from "@/platform/platformInfo";
+import { commands, isTauri } from "@/platform/ipc";
 import {
   IconButton,
   Input,
@@ -192,6 +193,30 @@ export function TerminalView() {
   );
 }
 
+let shellList: Promise<string[]> | null = null;
+
+/** Installed shells, looked up once. */
+function availableShells(): Promise<string[]> {
+  if (!isTauri()) return Promise.resolve([]);
+  shellList ??= commands.termAvailableShells().catch(() => {
+    shellList = null;
+    return [];
+  });
+  return shellList;
+}
+
+/** "zsh", or "bash (/opt/homebrew/bin/bash)" when several shells share a name. */
+export function shellItems(paths: string[]): MenuItem[] {
+  const name = (p: string) => p.split(/[\\/]/).pop()!.replace(/\.exe$/i, "");
+  return paths.map((p) => ({
+    kind: "action",
+    action: "terminal.newPredefinedSession",
+    arg: p,
+    label: paths.filter((q) => name(q) === name(p)).length > 1 ? `${name(p)} (${p})` : name(p),
+    icon: "",
+  }));
+}
+
 /** Session tabs shown in the tool window header: "Local ×  +  ▾". */
 export function TerminalTabs() {
   const tabs = useTerminals((s) => s.tabs);
@@ -199,6 +224,7 @@ export function TerminalTabs() {
   const sessions = useTerminals((s) => s.sessions);
   const [renaming, setRenaming] = useState<{ id: string; anchor: Element } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [shells, setShells] = useState<string[]>([]);
   const menuRef = useRef<HTMLButtonElement>(null);
   const focusRaf = useRef(0);
 
@@ -240,8 +266,13 @@ export function TerminalTabs() {
   const moreItems: MenuItem[] = [
     { kind: "action", action: "terminal.new" },
     { kind: "separator" },
+    { kind: "header", label: "New Predefined Session" },
+    ...shellItems(shells),
+    { kind: "separator" },
     { kind: "action", action: "terminal.splitRight" },
     { kind: "action", action: "terminal.splitDown" },
+    { kind: "separator" },
+    { kind: "action", action: "file.settings", arg: "tools.terminal", label: "Settings", icon: "settings" },
   ];
 
   return (
@@ -283,7 +314,10 @@ export function TerminalTabs() {
               title="More Terminal Options"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={() => {
+                if (!menuOpen) void availableShells().then(setShells);
+                setMenuOpen((v) => !v);
+              }}
             />
             <Menu open={menuOpen} anchor={menuRef} items={moreItems} onClose={() => setMenuOpen(false)} />
           </div>

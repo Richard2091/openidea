@@ -17,9 +17,11 @@ import {
   type ChangeSet,
   type TransactionSpec,
 } from "@codemirror/state";
-import { EditorView, keymap, type ViewUpdate } from "@codemirror/view";
+import { EditorView, ViewPlugin, keymap, type ViewUpdate } from "@codemirror/view";
 import { _addEditor, _removeEditor, documentSynced, isExternalChange, type EditorDocContext, type TextEditorHandle } from "@/editor/api";
+import { showContextMenu } from "@/ui";
 import { baseExtensions, compartments, contributionExtensions } from "../cm/setup";
+import { gutterMenuItems, inGutterMenuArea } from "../gutterMenu";
 import type { DocModel } from "./document";
 
 export interface SlotHost {
@@ -106,6 +108,18 @@ export class EditorSlot {
           this.host.onContextMenu(this, e);
           return true;
         },
+      }),
+      ViewPlugin.define((view) => {
+        // Gutters sit outside the content DOM. Gutter extensions with their own menu (breakpoints,
+        // annotations) handle the event first and prevent its default.
+        const onContextMenu = (e: MouseEvent) => {
+          if (e.defaultPrevented || !inGutterMenuArea(e.target)) return;
+          e.preventDefault();
+          const block = view.lineBlockAtHeight(e.clientY - view.documentTop);
+          showContextMenu(e, gutterMenuItems(this, view.state.doc.lineAt(block.from).number - 1));
+        };
+        view.dom.addEventListener("contextmenu", onContextMenu);
+        return { destroy: () => view.dom.removeEventListener("contextmenu", onContextMenu) };
       }),
     ];
   }

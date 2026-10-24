@@ -4,7 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type CSSProperties,
   type KeyboardEvent,
   type PointerEvent,
@@ -251,8 +250,92 @@ function StripeHandle({
   );
 }
 
-/** MIME type of a dragged stripe button (the tool window id). */
-export const TOOL_WINDOW_MIME = "application/x-openidea-toolwindow";
+// Stripe button drag. Pointer events rather than HTML5 drag and drop: with the window's native
+// file drop enabled, the webview never sees dragover / drop for drags that start inside it.
+
+type StripeDrop = { group: StripeGroup; before: string | null };
+
+const useStripeDrag = create<{ id: string | null; drop: StripeDrop | null }>(() => ({ id: null, drop: null }));
+
+/** Movement before a press on a stripe button becomes a drag, px. */
+const DRAG_THRESHOLD = 4;
+/** Set when a drag ends on its own button, so the click that follows doesn't toggle the window. */
+let dragEnded = false;
+
+/** Drop position under the pointer: a stripe group and the button to insert before (null: at the end). */
+function stripeDropAt(x: number, y: number): StripeDrop | null {
+  const nav = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-stripe-side]");
+  const side = nav?.dataset.stripeSide;
+  if (!nav || (side !== "left" && side !== "right")) return null;
+  const spacer = nav.querySelector<HTMLElement>("[data-stripe-spacer]")?.getBoundingClientRect();
+  const lower = !!spacer && y > spacer.top + spacer.height / 2;
+  let before: string | null = null;
+  for (const b of nav.querySelectorAll<HTMLElement>("[data-stripe-button]")) {
+    const r = b.getBoundingClientRect();
+    if (spacer && r.top > spacer.top !== lower) continue;
+    if (y < r.top + r.height / 2) {
+      before = b.dataset.stripeButton!;
+      break;
+    }
+  }
+  return { group: `${side}-${lower ? "bottom" : "top"}`, before };
+}
+
+function startStripeDrag(e: PointerEvent<HTMLButtonElement>, id: string) {
+  if (e.button !== 0) return;
+  const button = e.currentTarget;
+  const start = { x: e.clientX, y: e.clientY };
+  let ghost: HTMLElement | null = null;
+  const place = (x: number, y: number) => {
+    if (ghost) ghost.style.transform = `translate(${x - start.x}px, ${y - start.y}px)`;
+  };
+  const onMove = (ev: globalThis.PointerEvent) => {
+    if (!ghost) {
+      if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < DRAG_THRESHOLD) return;
+      const r = button.getBoundingClientRect();
+      ghost = button.cloneNode(true) as HTMLElement;
+      ghost.removeAttribute("data-stripe-button");
+      ghost.className = clsx(button.className, styles.stripeGhost);
+      Object.assign(ghost.style, {
+        left: `${r.left}px`,
+        top: `${r.top}px`,
+        width: `${r.width}px`,
+        height: `${r.height}px`,
+      });
+      document.body.appendChild(ghost);
+      useStripeDrag.setState({ id, drop: null });
+    }
+    place(ev.clientX, ev.clientY);
+    const drop = stripeDropAt(ev.clientX, ev.clientY);
+    const cur = useStripeDrag.getState().drop;
+    if (drop?.group !== cur?.group || drop?.before !== cur?.before) useStripeDrag.setState({ drop });
+  };
+  const finish = (commit: boolean) => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+    window.removeEventListener("pointercancel", onCancel);
+    window.removeEventListener("keydown", onKey, true);
+    if (!ghost) return;
+    ghost.remove();
+    const { drop } = useStripeDrag.getState();
+    useStripeDrag.setState({ id: null, drop: null });
+    dragEnded = true;
+    setTimeout(() => (dragEnded = false));
+    if (commit && drop && drop.before !== id) moveToolWindow(id, drop.group, drop.before);
+  };
+  const onUp = () => finish(true);
+  const onCancel = () => finish(false);
+  const onKey = (ev: globalThis.KeyboardEvent) => {
+    if (ev.key !== "Escape" || !ghost) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    finish(false);
+  };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onCancel);
+  window.addEventListener("keydown", onKey, true);
+}
 
 function StripeBadge({ useBadge }: { useBadge: () => number | string | null }) {
   const value = useBadge();
@@ -274,6 +357,7 @@ function StripeButton({
   showName: boolean;
 }) {
   const shortcut = shortcutLabel(`toolwindow.${tw.id}`);
+  const dragged = useStripeDrag((s) => s.id === tw.id);
   return (
     <button
       type="button"
@@ -283,17 +367,16 @@ function StripeButton({
         active && styles.stripeActive,
         active && focused && styles.stripeFocused,
         side === "right" && styles.stripeRight,
+        dragged && styles.stripeDragged,
       )}
       aria-label={tx(tw.title)}
       aria-pressed={active}
       aria-keyshortcuts={shortcut}
       data-stripe-button={tw.id}
-      draggable
-      onDragStart={(e) => {
-        e.dataTransfer.setData(TOOL_WINDOW_MIME, tw.id);
-        e.dataTransfer.effectAllowed = "move";
+      onPointerDown={(e) => startStripeDrag(e, tw.id)}
+      onClick={() => {
+        if (!dragEnded) toggleToolWindow(tw.id);
       }}
-      onClick={() => toggleToolWindow(tw.id)}
       onContextMenu={(e) => {
         e.preventDefault();
         showContextMenu(e, stripeButtonMenu(tw, showName));
@@ -388,26 +471,7 @@ export function ToolWindowStripe({
   const bottom = onStripe.filter((w) => stripeGroupOf(w) === `${side}-bottom`);
   const moreWindows = windows.filter((w) => !onStripe.includes(w));
   const focused = useToolWindowLayout((s) => s.focused);
-  const navRef = useRef<HTMLElement>(null);
-  const [drop, setDrop] = useState<{ group: StripeGroup; before: string | null } | null>(null);
-
-  const target = (e: DragEvent): { group: StripeGroup; before: string | null } => {
-    const spacer = navRef.current?.querySelector<HTMLElement>("[data-stripe-spacer]");
-    const spacerRect = spacer?.getBoundingClientRect();
-    const lower = !!spacerRect && e.clientY > spacerRect.top + spacerRect.height / 2;
-    const group: StripeGroup = `${side}-${lower ? "bottom" : "top"}`;
-    const list = lower ? bottom : top;
-    let before: string | null = null;
-    for (const w of list) {
-      const r = navRef.current?.querySelector<HTMLElement>(`[data-stripe-button="${w.id}"]`)?.getBoundingClientRect();
-      if (r && e.clientY < r.top + r.height / 2) {
-        before = w.id;
-        break;
-      }
-    }
-    return { group, before };
-  };
-  const isDrag = (e: DragEvent) => [...e.dataTransfer.types].includes(TOOL_WINDOW_MIME);
+  const drop = useStripeDrag((s) => s.drop);
 
   const indicator = (group: StripeGroup, before: string | null) =>
     drop && drop.group === group && drop.before === before ? (
@@ -427,7 +491,6 @@ export function ToolWindowStripe({
 
   return (
     <nav
-      ref={navRef}
       aria-label={side === "left" ? "Tool windows" : "Right tool windows"}
       role="toolbar"
       aria-orientation="vertical"
@@ -439,24 +502,6 @@ export function ToolWindowStripe({
         side === "right" ? styles.stripeSideRight : styles.stripeSideLeft,
       )}
       onKeyDown={onStripeKeyDown}
-      onDragOver={(e) => {
-        if (!isDrag(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        const t = target(e);
-        if (!drop || drop.group !== t.group || drop.before !== t.before) setDrop(t);
-      }}
-      onDragLeave={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDrop(null);
-      }}
-      onDrop={(e) => {
-        if (!isDrag(e)) return;
-        e.preventDefault();
-        const id = e.dataTransfer.getData(TOOL_WINDOW_MIME);
-        const t = target(e);
-        setDrop(null);
-        if (id && id !== t.before) moveToolWindow(id, t.group, t.before);
-      }}
     >
       {renderGroup(`${side}-top`, top)}
       {side === "left" && <StripeMore windows={moreWindows} />}
@@ -788,7 +833,9 @@ export function ToolWindowLayout({ editor }: { editor: ReactNode }) {
   const hasRight = windows.some(
     (w) => w.anchor === "right" && (hasStripeButton(w, stripeButtons) || visible.right === w.id),
   );
-  const rightStripe = bars && hasRight;
+  // While a stripe button is dragged, an empty right stripe shows as a drop target.
+  const dragging = useStripeDrag((s) => !!s.id);
+  const rightStripe = bars && (hasRight || dragging);
   const gridRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const sync = () => {

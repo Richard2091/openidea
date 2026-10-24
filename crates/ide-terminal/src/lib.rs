@@ -32,7 +32,7 @@ const KILL_GRACE: Duration = Duration::from_millis(1500);
 #[serde(rename_all = "camelCase")]
 pub struct TerminalOptions {
     pub cwd: ide_core::IpcPath,
-    /// Defaults to the user's login shell (`$SHELL`, or `COMSPEC` on Windows).
+    /// Defaults to the user's login shell (passwd entry, then `$SHELL`; PowerShell or `COMSPEC` on Windows).
     pub shell: Option<String>,
     pub args: Vec<String>,
     pub env: BTreeMap<String, String>,
@@ -359,6 +359,48 @@ pub fn default_shell_path() -> String {
     default_shell()
 }
 
+/// Installed shells for "New Predefined Session", the login shell first. On
+/// Unix: `/etc/shells` plus `$PATH`, so Homebrew shells show up too.
+pub fn available_shells() -> Vec<String> {
+    let mut found: Vec<PathBuf> = Vec::new();
+    let mut add = |p: PathBuf| {
+        let key = p.canonicalize().unwrap_or_else(|_| p.clone());
+        if p.is_file() && !found.iter().any(|f| f.canonicalize().unwrap_or_else(|_| f.clone()) == key) {
+            found.push(p);
+        }
+    };
+    add(PathBuf::from(default_shell()));
+    #[cfg(unix)]
+    {
+        const NAMES: [&str; 5] = ["zsh", "bash", "fish", "nu", "pwsh"];
+        let listed = std::fs::read_to_string("/etc/shells").unwrap_or_default();
+        for name in NAMES {
+            for line in listed.lines().map(str::trim).filter(|l| l.starts_with('/')) {
+                if shell_title(line) == name {
+                    add(PathBuf::from(line));
+                }
+            }
+            if let Some(p) = find_in_path(name) {
+                add(p);
+            }
+        }
+    }
+    #[cfg(windows)]
+    {
+        for exe in ["pwsh.exe", "powershell.exe", "cmd.exe", "wsl.exe"] {
+            if let Some(p) = find_in_path(exe) {
+                add(p);
+            }
+        }
+        for var in ["ProgramFiles", "ProgramW6432"] {
+            if let Some(dir) = std::env::var_os(var) {
+                add(PathBuf::from(dir).join("Git").join("bin").join("bash.exe"));
+            }
+        }
+    }
+    found.into_iter().map(|p| p.to_string_lossy().into_owned()).collect()
+}
+
 /// Picks the shell binary and its arguments. A default (or explicitly chosen but
 /// argument-less) POSIX shell is started as a login shell, like Terminal.app/IDEA.
 fn resolve_shell(shell: Option<&str>, args: &[String]) -> (String, Vec<String>) {
@@ -372,12 +414,32 @@ fn resolve_shell(shell: Option<&str>, args: &[String]) -> (String, Vec<String>) 
     (shell, args)
 }
 
+/// The account's login shell comes first: `$SHELL` is inherited from whatever
+/// launched the app (a terminal running another shell, `tauri dev`), so it may
+/// not be the shell the user picked.
 #[cfg(unix)]
 fn default_shell() -> String {
-    if let Some(shell) = std::env::var("SHELL").ok().filter(|s| !s.is_empty() && Path::new(s).exists()) {
+    let usable = |s: &String| !s.is_empty() && Path::new(s).exists();
+    if let Some(shell) = login_shell().filter(usable).or_else(|| std::env::var("SHELL").ok().filter(usable)) {
         return shell;
     }
     ["/bin/zsh", "/bin/bash", "/bin/sh"].into_iter().find(|p| Path::new(p).exists()).unwrap_or("/bin/sh").to_owned()
+}
+
+/// `pw_shell` of the current user's passwd entry.
+#[cfg(unix)]
+fn login_shell() -> Option<String> {
+    let mut buf = vec![0 as libc::c_char; 4096];
+    let mut pwd: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut result: *mut libc::passwd = std::ptr::null_mut();
+    // SAFETY: every pointer refers to a live local buffer of the stated size.
+    let rc = unsafe { libc::getpwuid_r(libc::getuid(), &mut pwd, buf.as_mut_ptr(), buf.len(), &mut result) };
+    if rc != 0 || result.is_null() || pwd.pw_shell.is_null() {
+        return None;
+    }
+    // SAFETY: on success `pw_shell` is a NUL-terminated string inside `buf`.
+    let shell = unsafe { std::ffi::CStr::from_ptr(pwd.pw_shell) };
+    Some(shell.to_string_lossy().into_owned())
 }
 
 #[cfg(windows)]
@@ -390,7 +452,6 @@ fn default_shell() -> String {
     std::env::var("COMSPEC").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "cmd.exe".to_owned())
 }
 
-#[cfg(windows)]
 fn find_in_path(exe: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path).map(|dir| dir.join(exe)).find(|p| p.is_file())
@@ -421,6 +482,22 @@ fn terminal_env(user: &BTreeMap<String, String>) -> BTreeMap<String, String> {
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn login_shell_reads_the_passwd_entry() {
+        let shell = login_shell().expect("passwd entry");
+        assert!(shell.starts_with('/'), "{shell}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn available_shells_start_with_the_default_and_are_distinct() {
+        let shells = available_shells();
+        assert_eq!(shells.first(), Some(&default_shell_path()));
+        let unique: std::collections::HashSet<_> = shells.iter().collect();
+        assert_eq!(unique.len(), shells.len());
+    }
     use std::sync::mpsc::Receiver;
 
     struct Harness {

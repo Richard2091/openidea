@@ -5,12 +5,14 @@
  */
 import { lazyComponent } from "@/ui";
 import { activeEditor, registerEditorContribution } from "@/editor/api";
-import { registerActions } from "@/platform/actions";
+import { executeAction, registerActions } from "@/platform/actions";
+import { shortcutLabel } from "@/platform/keymap";
 import { onIdeEvent } from "@/platform/ipc";
 import { useProject } from "@/platform/project";
-import { registerOverlay, registerToolWindow } from "@/workbench/contributions";
+import { registerMenuGroup, registerOverlay, registerToolWindow } from "@/workbench/contributions";
 import { bookmarkGutter } from "./bookmarks/gutter";
 import {
+  hasBookmark,
   loadBookmarks,
   renameBookmarks,
   toggleBookmark,
@@ -46,7 +48,8 @@ function closeAllPopups(except?: PopupKind) {
   if (except !== "everywhere") hideSearchEverywhere();
   if (except !== "recent") hideRecentPopup();
   if (except !== "find") hideFindPopup();
-  if (except !== "fileStructure" && useFileStructurePopup.getState().open) useFileStructurePopup.setState({ open: false });
+  if (except !== "fileStructure" && useFileStructurePopup.getState().open)
+    useFileStructurePopup.setState({ open: false });
 }
 
 function jumpBookmark(dir: 1 | -1) {
@@ -59,7 +62,9 @@ function jumpBookmark(dir: 1 | -1) {
   const cur = `${path ?? ""}\u0000${String(line).padStart(9, "0")}`;
   const sorted = order.sort((a, b) => (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
   const next =
-    dir === 1 ? (sorted.find((x) => x.k > cur) ?? sorted[0]) : ([...sorted].reverse().find((x) => x.k < cur) ?? sorted[sorted.length - 1]);
+    dir === 1
+      ? (sorted.find((x) => x.k > cur) ?? sorted[0])
+      : ([...sorted].reverse().find((x) => x.k < cur) ?? sorted[sorted.length - 1]);
   if (next) void openLocation(next.b.path, { line: next.b.line, col: 0 });
 }
 
@@ -112,6 +117,22 @@ export function activate(): void | (() => void) {
       id: "search.bookmarks",
       order: 50,
       extensions: (ctx) => bookmarkGutter(ctx.path),
+    }),
+    registerMenuGroup({
+      id: "search.bookmarks",
+      menus: ["editorGutter"],
+      order: 20,
+      items: (_menu, { paths: [path], line }) => {
+        if (!path || line == null) return [];
+        const on = hasBookmark(useBookmarks.getState().items, path, line);
+        return [
+          {
+            label: on ? "Remove Bookmark" : "Add Bookmark",
+            shortcut: shortcutLabel("navigate.toggleBookmark"),
+            run: () => void executeAction("navigate.toggleBookmark", { path, line }),
+          },
+        ];
+      },
     }),
 
     registerActions([
@@ -298,7 +319,8 @@ export function activate(): void | (() => void) {
       onProject(s.project?.root ?? null);
       resetTracking();
       // A directory scope pointed into the previous project.
-      if (useFindPopup.getState().scopeTab === "directory") useFindPopup.setState({ scopeTab: "project", directory: "" });
+      if (useFindPopup.getState().scopeTab === "directory")
+        useFindPopup.setState({ scopeTab: "project", directory: "" });
     }),
     onIdeEvent("fsChanged", (e) => {
       if (!e.removed.length) return;

@@ -70,8 +70,15 @@
 .pane :global(.xterm-viewport) {
   background-color: var(--bg-island, var(--bg-app)) !important;
 }
-.pane :global(.xterm .xterm-viewport::-webkit-scrollbar) {
-  width: 8px;
+.pane :global(.xterm .xterm-scrollable-element > .scrollbar > .slider) {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  background: var(--scrollbar-thumb) content-box;
+}
+.pane :global(.xterm .xterm-scrollable-element > .scrollbar > .slider:hover),
+.pane :global(.xterm .xterm-scrollable-element > .scrollbar > .slider.active) {
+  background: var(--scrollbar-thumb-hover) content-box;
 }
 
 .rename {

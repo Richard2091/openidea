@@ -249,6 +249,8 @@ export const intellijWindows: Record<string, string[]> = {
   "db.sqlScript": [],
   "db.goToReferencedTable": [],
   "db.collapseAll": [],
+  // Terminal (keyWhen: terminalFocus); after VCS Update / Go to Test so it wins there.
+  "terminal.new": ["Ctrl+Shift+T"],
   // Last: later bindings win, so Alt+Insert is Generate in the editor and New in tool windows.
   "code.generate": ["Alt+Insert"],
 };

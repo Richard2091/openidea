@@ -2364,5 +2364,14 @@
   "Custom": "自定义",
   "On PATH": "PATH 中",
   "Reinstall": "重新安装",
-  "Auto-detect": "自动检测"
+  "Auto-detect": "自动检测",
+  "Move focus to the Editor with Escape": "按 Escape 将焦点移到编辑器",
+  "Otherwise Escape goes to the shell.": "否则 Escape 发送给 shell。",
+  "Configure terminal keybindings": "配置终端快捷键",
+  "Used for characters the main font lacks.": "用于主字体缺少的字符。",
+  "Column width": "列宽",
+  "Installed Shells": "已安装的 Shell",
+  "Installed shells": "已安装的 Shell",
+  "Shell Path": "Shell 路径",
+  "New Predefined Session": "新建预定义会话"
 }

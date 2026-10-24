@@ -252,6 +252,8 @@ export const intellijMacos: Record<string, string[]> = {
   "db.sqlScript": [],
   "db.goToReferencedTable": [],
   "db.collapseAll": [],
+  // Terminal (keyWhen: terminalFocus); after VCS Update / Go to Test so it wins there.
+  "terminal.new": ["Meta+T"],
   // Last: later bindings win, so ⌘N is Generate in the editor and New in tool windows.
   "code.generate": ["Meta+N"],
 };

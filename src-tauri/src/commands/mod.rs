@@ -184,6 +184,7 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
         term::term_resize,
         term::term_kill,
         term::term_default_shell,
+        term::term_available_shells,
         run::run_configs,
         run::run_save_configs,
         run::run_start,

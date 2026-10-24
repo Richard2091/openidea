@@ -144,6 +144,7 @@ export const vscodeMacos: Record<string, string[]> = {
   "toolwindow.git": ["Ctrl+Shift+G"],
   "toolwindow.commit": [],
   "toolwindow.terminal": ["Ctrl+`"],
+  "terminal.new": [],
   "toolwindow.hideAll": ["Meta+B"],
   "toolwindow.maximize": [],
   "toolwindow.jumpToLast": [],
