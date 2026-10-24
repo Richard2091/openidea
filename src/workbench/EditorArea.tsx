@@ -1,5 +1,6 @@
 import { executeAction, useActions } from "@/platform/actions";
 import { shortcutLabel } from "@/platform/keymap";
+import { T } from "@/ui";
 import { useWorkbenchSlots } from "./contributions";
 import { ErrorBoundary, Slot } from "./ErrorBoundary";
 import styles from "./EditorArea.module.css";
@@ -26,10 +27,10 @@ export function EmptyEditor() {
               <dt>
                 {runnable ? (
                   <button type="button" className={styles.hintButton} onClick={() => void executeAction(h.action!)}>
-                    {h.label}
+                    <T>{h.label}</T>
                   </button>
                 ) : (
-                  h.label
+                  <T>{h.label}</T>
                 )}
               </dt>
               {keys && <dd className={styles.keys}>{keys}</dd>}

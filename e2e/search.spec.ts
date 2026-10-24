@@ -20,7 +20,7 @@ test("Search Everywhere finds and runs an action", async ({ workbench: page }) =
   await expect(option).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
-  await expect(page.getByRole("table", { name: /language servers/i })).toBeVisible();
+  await expect(page.getByRole("list", { name: /language servers/i })).toBeVisible();
 });
 
 test("Search Everywhere finds a file and opens it", async ({ workbench: page }) => {

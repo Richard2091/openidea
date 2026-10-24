@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { BarButton, Icon, IconButton, Menu, type MenuItem } from "@/ui";
 import { executeAction } from "@/platform/actions";
 import { useContextKeys } from "@/platform/context";
+import { useTx } from "@/platform/i18n";
 import { shortcutLabel } from "@/platform/keymap";
 import { runExecutors, useRunExecutors } from "@/workbench/contributions";
 import { configIcon } from "./configs";
@@ -11,6 +12,7 @@ import styles from "./Run.module.css";
 
 /** Title bar: configuration chooser, Run / Debug, and Rerun / Stop while running. */
 export function RunWidget() {
+  const tx = useTx();
   const configs = useRun((s) => s.configs);
   const selectedId = useRun((s) => s.selectedId);
   const sessions = useRun((s) => s.sessions);
@@ -48,7 +50,7 @@ export function RunWidget() {
       <BarButton
         variant="title"
         className={styles.widgetChooser}
-        tooltip="Run/Debug Configurations"
+        tooltip={tx("Run/Debug Configurations")}
         shortcut={shortcutLabel("run.chooseConfig")}
         aria-haspopup="listbox"
         aria-expanded={chooserOpen}
@@ -59,10 +61,14 @@ export function RunWidget() {
           // IDEA: the configuration's type icon, with a status dot on its top-right corner while active.
           <span className={styles.widgetConfigIcon}>
             <Icon name={configIcon(selected)} size={16} />
-            {active && <span className={styles.widgetStatusDot} aria-label={debugging ? "Debugging" : "Running"} role="img" />}
+            {active && (
+              <span className={styles.widgetStatusDot} aria-label={debugging ? "Debugging" : "Running"} role="img" />
+            )}
           </span>
         )}
-        <span className={styles.widgetName}>{selected?.name ?? (configs.length ? "Select Configuration" : "Add Configuration…")}</span>
+        <span className={styles.widgetName}>
+          {selected?.name ?? tx(configs.length ? "Select Configuration" : "Add Configuration…")}
+        </span>
         <Icon name="chevron-down" size={14} className={styles.widgetChevron} />
       </BarButton>
       <span className={styles.widgetButtons}>
@@ -156,7 +162,13 @@ export function RunWidget() {
           aria-expanded={moreOpen}
           onClick={() => setMoreOpen((v) => !v)}
         />
-        <Menu open={moreOpen} anchor={moreRef} items={moreItems} placement="bottom-end" onClose={() => setMoreOpen(false)} />
+        <Menu
+          open={moreOpen}
+          anchor={moreRef}
+          items={moreItems}
+          placement="bottom-end"
+          onClose={() => setMoreOpen(false)}
+        />
       </span>
     </div>
   );
