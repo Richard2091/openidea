@@ -286,7 +286,7 @@ export function DatabaseView() {
     return (
       <div className={styles.dbView}>
         <DatabaseToolbar />
-        <EmptyState title="No data sources">
+        <EmptyState title={<T>No data sources</T>}>
           <Button variant="ghost" onClick={() => void executeAction("db.newDataSource")}>
             <T>New Data Source…</T>
           </Button>

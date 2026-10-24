@@ -4,6 +4,7 @@
  */
 import type { Action } from "@/platform/actions";
 import type { FileMatch, LineMatch, SymbolMatch, WorkspaceSymbol } from "@/platform/ipc";
+import { tx } from "@/platform/i18n";
 import { basename, isTypeKind, relDir, symbolDisplayName } from "../common/open";
 import { byScore, matchText } from "../common/rank";
 
@@ -131,7 +132,11 @@ export interface SectionState {
 // ---------------------------------------------------------------------------
 // Item builders
 
-export function fileItem(m: Pick<FileMatch, "path" | "relPath" | "indices">, line: number | null = null, col: number | null = null): FileItem {
+export function fileItem(
+  m: Pick<FileMatch, "path" | "relPath" | "indices">,
+  line: number | null = null,
+  col: number | null = null,
+): FileItem {
   const name = basename(m.relPath);
   const nameStart = m.relPath.length - name.length;
   return {
@@ -239,12 +244,18 @@ export function matchActions(
     if (!enabled && opts.includeDisabled === false) continue;
     let score: number;
     let indices: number[] = [];
-    const title = matchText(a.title, q, { wordAligned: true });
+    const translated = tx(a.title);
+    const translatedHit = matchText(translated, q, { wordAligned: true });
+    const englishHit = translated === a.title ? undefined : matchText(a.title, q, { wordAligned: true });
+    const useEnglishHit = !!englishHit && (!translatedHit || englishHit.score > translatedHit.score);
+    const title = useEnglishHit ? englishHit : translatedHit;
     if (title) {
       score = title.score;
-      indices = title.indices;
+      indices = useEnglishHit ? [] : title.indices;
     } else {
-      const extra = [a.category, a.description, ...(a.keywords ?? [])].filter((s): s is string => !!s);
+      const extra = [a.category ? tx(a.category) : "", a.description, ...(a.keywords ?? [])].filter(
+        (s): s is string => !!s,
+      );
       const best = Math.max(-Infinity, ...extra.map((s) => matchText(s, q, { wordAligned: true })?.score ?? -Infinity));
       const idHit = a.id.toLowerCase().includes(q.toLowerCase()) ? 0 : -Infinity;
       score = Math.max(best, idHit) - 400;
@@ -257,8 +268,8 @@ export function matchActions(
       kind: "action",
       key: `a:${a.id}`,
       id: a.id,
-      title: a.title,
-      category: a.category,
+      title: translated,
+      category: a.category ? tx(a.category) : a.category,
       icon: a.icon,
       enabled,
       indices,
@@ -273,8 +284,8 @@ export function actionItem(a: Action, enabled: boolean): ActionItem {
     kind: "action",
     key: `a:${a.id}`,
     id: a.id,
-    title: a.title,
-    category: a.category,
+    title: tx(a.title),
+    category: a.category ? tx(a.category) : a.category,
     icon: a.icon,
     enabled,
     indices: [],
@@ -288,7 +299,8 @@ export function textItems(path: string, rel: string, matches: readonly LineMatch
     const lead = m.text.length - m.text.trimStart().length;
     const text = m.text.slice(lead).trimEnd();
     const indices: number[] = [];
-    for (const [s, e] of m.ranges) for (let i = Math.max(s, lead); i < e; i++) if (i - lead < text.length) indices.push(i - lead);
+    for (const [s, e] of m.ranges)
+      for (let i = Math.max(s, lead); i < e; i++) if (i - lead < text.length) indices.push(i - lead);
     const first = m.ranges[0] ?? [0, 0];
     out.push({
       kind: "text",
@@ -308,10 +320,7 @@ export function textItems(path: string, rel: string, matches: readonly LineMatch
 // ---------------------------------------------------------------------------
 // Rows
 
-export function buildRows(
-  sections: ReadonlyMap<SectionId, SectionState>,
-  opts: { headers: boolean },
-): SeRow[] {
+export function buildRows(sections: ReadonlyMap<SectionId, SectionState>, opts: { headers: boolean }): SeRow[] {
   const rows: SeRow[] = [];
   for (const id of SECTION_ORDER) {
     const s = sections.get(id);

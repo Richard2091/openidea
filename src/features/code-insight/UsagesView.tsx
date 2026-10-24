@@ -1,5 +1,6 @@
 /** "usages" tool window: Find Usages results grouped by file with line previews. */
 import { useCallback, useMemo, useState } from "react";
+import { useTx } from "@/platform/i18n";
 import { basename, relativeDir, useProject } from "@/platform/project";
 import { EmptyState, Icon, IconButton, Spinner, Tabs, Tree, fileIconName, type TreeRowState, T } from "@/ui";
 import { openLocation } from "./ipc";
@@ -24,9 +25,10 @@ export function UsagePreview({ usage }: { usage: Usage }) {
 
 /** Tool window header: the current search as a content tab (`Usages of 'foo'`). */
 export function UsagesTabs() {
+  const tx = useTx();
   const search = useUsages((s) => s.search);
   if (!search) return null;
-  const label = search.symbol ? `Usages of '${search.symbol}'` : "Usages";
+  const label = search.symbol ? `'${search.symbol}' 的用法` : tx("Usages");
   return (
     <Tabs
       variant="compact"
@@ -42,6 +44,7 @@ export function UsagesTabs() {
 const SUMMARY_KEY = "\u0000summary";
 
 export function UsagesView() {
+  const tx = useTx();
   const search = useUsages((s) => s.search);
   const root = useProject((s) => s.project?.root ?? "");
   const [collapsed, setCollapsed] = useState<{ id: number | null; keys: ReadonlySet<string> }>({
@@ -86,7 +89,7 @@ export function UsagesView() {
             <T>Found usages</T>
           </span>
           <span className={styles.count}>
-            {total} {total === 1 ? "result" : "results"}
+            {total} {tx(total === 1 ? "result" : "results")}
           </span>
           {search.note && <span className={styles.note}>{search.note}</span>}
         </span>
@@ -99,7 +102,7 @@ export function UsagesView() {
           <span className={styles.file}>{basename(path)}</span>
           <span className={styles.muted}>{relativeDir(root, path)}</span>
           <span className={styles.count}>
-            {n.group.usages.length} {n.group.usages.length === 1 ? "usage" : "usages"}
+            {n.group.usages.length} {tx(n.group.usages.length === 1 ? "usage" : "usages")}
           </span>
         </span>
       );
@@ -117,7 +120,7 @@ export function UsagesView() {
       <div className={styles.toolbar} role="toolbar" aria-orientation="vertical" aria-label="Usages actions">
         <IconButton
           icon="rerun"
-          title="Rerun Find Usages"
+          title={tx("Rerun Find Usages")}
           size="small"
           iconSize={16}
           disabled={!search.rerun}
@@ -132,7 +135,7 @@ export function UsagesView() {
           <div className={styles.summary} role="status" aria-live="polite">
             {search.loading ? (
               <>
-                <Spinner size={12} /> Searching for usages{search.symbol ? ` of '${search.symbol}'` : ""}…
+                <Spinner size={12} /> {search.symbol ? `'${search.symbol}' 的用法` : tx("Searching for usages")}…
               </>
             ) : (
               <span className={styles.error}>{search.error}</span>
@@ -145,7 +148,7 @@ export function UsagesView() {
           roots={roots}
           getKey={(n) => n.key}
           getLabel={(n) =>
-            n.kind === "summary" ? "Found usages" : n.kind === "file" ? basename(n.group.path) : n.usage.text.trim()
+            n.kind === "summary" ? tx("Found usages") : n.kind === "file" ? basename(n.group.path) : n.usage.text.trim()
           }
           getChildren={getChildren}
           isExpandable={(n) => n.kind !== "usage"}
